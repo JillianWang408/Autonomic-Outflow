@@ -42,16 +42,62 @@ pip install -r requirements.txt
 
 ```bash
 python preprocess.py --data-dir data --output-dir plots/preprocessed
-# Optional: --max-duration 300  (plot first 5 min; use 0 for full signal)
+# Optional: --eda-mode highpass (default) or lowpass
+# Optional: --eda-cutoff 0.05  (highpass) or 1-3 (lowpass)
+# Optional: --max-duration 300  (plot first 5 min; use 0 for full)
 ```
 
-- **EDA**: Low-pass 3 Hz (Butterworth)
+- **EDA**: Highpass 0.05 Hz (phasic component, removes drift). Spectrum: 90% power < 0.15 Hz.
 - **RSA**: Bandpass 0.12–0.4 Hz (respiratory range)
-- Saves raw vs preprocessed comparison plots to `plots/preprocessed/`
+- Saves comparison plots to `plots/preprocessed/`
+- Use `--save-data` to save preprocessed signals (t, eda, eda_clean, rsa, rsa_clean) to `data/preprocessed/` as .mat
+- See [docs/PREPROCESSING_SUMMARY.md](docs/PREPROCESSING_SUMMARY.md) for methods and rationale
+
+## Spectrum Analysis
+
+```bash
+python analyze_spectrum.py --data-dir data
+```
+
+Analyzes frequency composition of EDA/RSA; saves plots to `plots/spectrum/`
 
 ## Run Analysis
 
+Uses preprocessed data by default. Run `python preprocess.py --save-data` first.
+
 ```bash
-python eda_rsa_overlap.py --data-dir data
+python eda_rsa_overlap.py
+# Uses data/preprocessed/ by default
+# Optional: --data-dir data/preprocessed
+# Optional: --raw  (use raw data from data/)
 # Optional: --top-pct 0.20  (default: top 20% = active)
+# Optional: --thresholds 0.1 0.2 0.3  (compare multiple thresholds)
+# Optional: --plot  (save heatmap to plots/overlap_heatmaps.png when using --thresholds)
+
+## Figure 1A (overlap regions)
+
+```bash
+python plot_figure1.py                    # Auto-pick best patient+threshold (20%), save draft
+python plot_figure1.py --all              # All patients × thresholds [5,10,...,40]% → plots/1A/thresh{N}/
+python plot_figure1.py --patient EC288_pN22 --threshold 20  # Specific
 ```
+
+- EDA active: yellow (sympathetic)
+- RSA active: blue (parasympathetic)
+- Thresholds: 5, 10, 15, 20, 25, 30, 35, 40%
+- Output: `plots/1A/Figure1A_draft.png` — see [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for full layout
+
+## Figure 1B (heatmaps)
+
+```bash
+python plot_figure1B.py
+```
+
+- P(EDA|RSA): participants × thresholds, bottom row = group average
+- P(RSA|EDA): same structure
+- Output: `plots/1B/P_EDA_given_RSA.png`, `plots/1B/P_RSA_given_EDA.png`
+
+## Brainstorm: More Plots & Analyses
+
+- **[Joint temporal dynamics](docs/ANALYSIS_JOINT_TEMPORAL_DYNAMICS.md)** — cross-correlation, coherence, event timing, Granger causality, HMM regimes, surrogates
+- **[Plots & analyses brainstorm](docs/BRAINSTORM_PLOTS_AND_ANALYSES.md)** — summary plots, threshold sensitivity, time-course, frequency-domain, clustering, export

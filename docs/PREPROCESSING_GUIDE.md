@@ -70,8 +70,11 @@ rsa_clean = nk.signal_filter(rsa_signal, sampling_rate=100, lowcut=0.12, highcut
 
 ## Recommended pipeline for your EDA + RSA data (100 Hz)
 
-1. **EDA**: `nk.eda_clean(eda, sampling_rate=100, method="neurokit")` — 3 Hz lowpass
-2. **RSA**: `nk.signal_filter(rsa, sampling_rate=100, lowcut=0.12, highcut=0.4)` — bandpass
+**Spectrum analysis** (this dataset): EDA 90% power < 0.15 Hz, 99% < 0.5 Hz. Lowpass 3 Hz removes almost nothing.
+
+1. **EDA**: Highpass 0.05 Hz — removes slow drift, extracts phasic (SCR-like) component. Visible difference from raw.
+   - Or lowpass 1–3 Hz if you only need to remove high-freq noise.
+2. **RSA**: Bandpass 0.12–0.4 Hz (pattern preserved).
 3. (Optional) Remove motion artifacts via threshold or EDAQA
 4. Run your overlap/covariance analysis on cleaned signals
 

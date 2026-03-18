@@ -24,7 +24,7 @@ from scipy.io import loadmat
 
 def main():
     parser = argparse.ArgumentParser(description="Plot EDA/RSA overlap regions for Figure 1A")
-    parser.add_argument("--data-dir", default="data/preprocessed", help="Data directory")
+    parser.add_argument("--data-dir", default="data", help="Data directory (default: raw)")
     parser.add_argument("--output-dir", default="plots/1A", help="Output directory (Figure 1A folder)")
     parser.add_argument("--max-duration", type=float, default=300, help="Plot middle N seconds (0 = full time course)")
     parser.add_argument("--all", action="store_true", help="Generate all patient×threshold plots")

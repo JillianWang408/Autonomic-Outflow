@@ -1,8 +1,7 @@
 """
-Figure 1B: P(EDA|RSA) and P(RSA|EDA) heatmaps.
+Figure 1B: Jaccard overlap heatmap.
 
 For each participant (y-axis) × threshold (x-axis), with group average in bottom row.
-Saves two separate images with colorbar.
 """
 
 import numpy as np
@@ -32,7 +31,7 @@ def _build_matrix(
         matrix[n_participants, j] = np.nanmean([r[metric] for r in results_by_thresh[thresh]])
 
     row_labels = [
-        Path(r["file"]).stem.replace(" full EDA & RSA waveform_preprocessed", "").replace("_preprocessed", "")
+        Path(r["file"]).stem.split(" full")[0].replace("_preprocessed", "").strip()
         for r in results
     ]
     row_labels.append("Group avg")
@@ -49,12 +48,13 @@ def plot_heatmap_single(
     save_path: Path,
     vmin: float = 0,
     vmax: float | None = 0.4,
-    cmap: str = "viridis",
+    cbar_label: str = "Jaccard",
+    cmap: str = "plasma",
     figsize: tuple[float, float] = (8, 6),
 ) -> plt.Figure:
     """Plot single heatmap with colorbar, save to path."""
     fig, ax = plt.subplots(figsize=figsize)
-    im = ax.imshow(matrix, aspect="auto", vmin=vmin, vmax=vmax, cmap=cmap)
+    im = ax.imshow(matrix, aspect="auto", vmin=vmin, vmax=vmax, cmap=cmap, interpolation="nearest")
     ax.set_xticks(range(len(col_labels)))
     ax.set_xticklabels(col_labels)
     ax.set_yticks(range(len(row_labels)))
@@ -63,7 +63,7 @@ def plot_heatmap_single(
     ax.set_ylabel("Participant")
     ax.set_title(title)
     ax.axhline(len(row_labels) - 1.5, color="white", linewidth=1.5, linestyle="--")
-    plt.colorbar(im, ax=ax, label="Probability", shrink=0.8)
+    plt.colorbar(im, ax=ax, label=cbar_label, shrink=0.8)
     fig.tight_layout()
 
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,17 +73,16 @@ def plot_heatmap_single(
 
 
 def generate_figure1b(
-    data_dir: str = "data/preprocessed",
+    data_dir: str = "data",
     output_dir: str = "plots/1B",
     thresholds: tuple[float, ...] = THRESHOLDS,
-    use_preprocessed: bool = True,
-) -> tuple[Path, Path]:
+    use_preprocessed: bool = False,
+) -> Path:
     """
-    Generate Figure 1B: two heatmap images.
-    - P(EDA|RSA): participants × thresholds, bottom row = group avg
-    - P(RSA|EDA): same structure
+    Generate Figure 1B: Jaccard overlap heatmap.
+    Participants (y-axis) × thresholds (x-axis), bottom row = group avg.
 
-    Returns (path_eda_given_rsa, path_rsa_given_eda).
+    Returns path to saved image.
     """
     results_by_thresh = analyze_all_thresholds(
         data_dir=data_dir,
@@ -94,24 +93,18 @@ def generate_figure1b(
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    # P(EDA | RSA)
-    mat_eda_rsa, row_labels, col_labels = _build_matrix(results_by_thresh, "P_A_given_B")
-    path_eda_rsa = out_path / "P_EDA_given_RSA.png"
+    mat, row_labels, col_labels = _build_matrix(results_by_thresh, "jaccard")
+    save_file = out_path / "Jaccard_overlap.png"
+    # Auto-scale to data range for clearer contrast; clamp to [0, 1]
+    vmin = 0
+    vmax = max(0.1, float(np.nanmax(mat)))
     plot_heatmap_single(
-        mat_eda_rsa, row_labels, col_labels,
-        title="P(EDA active | RSA active)",
-        save_path=path_eda_rsa,
+        mat, row_labels, col_labels,
+        title="Jaccard overlap (EDA ∩ RSA / EDA ∪ RSA)",
+        save_path=save_file,
+        vmin=vmin,
+        vmax=min(1.0, vmax * 1.05),  # slight headroom above max
+        cmap="plasma",  # higher contrast than viridis
     )
-    print(f"Saved: {path_eda_rsa}")
-
-    # P(RSA | EDA)
-    mat_rsa_eda, _, _ = _build_matrix(results_by_thresh, "P_B_given_A")
-    path_rsa_eda = out_path / "P_RSA_given_EDA.png"
-    plot_heatmap_single(
-        mat_rsa_eda, row_labels, col_labels,
-        title="P(RSA active | EDA active)",
-        save_path=path_rsa_eda,
-    )
-    print(f"Saved: {path_rsa_eda}")
-
-    return path_eda_rsa, path_rsa_eda
+    print(f"Saved: {save_file}")
+    return save_file

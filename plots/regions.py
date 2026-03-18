@@ -66,31 +66,37 @@ def plot_patient_overlap_regions(
     rsa_only = rsa_active & ~eda_active
     overlap = eda_active & rsa_active
 
-    # Normalize both to 0-1 for display on same axes
-    def _norm(x):
+    # Z-score both for display on same axes (mean=0, std=1)
+    def _zscore(x):
         x = np.asarray(x, dtype=float)
-        mn, mx = x.min(), x.max()
-        return (x - mn) / (mx - mn) if mx > mn else np.zeros_like(x)
+        m, s = x.mean(), x.std()
+        return (x - m) / s if s > 0 else np.zeros_like(x)
 
-    eda_n = _norm(eda_plot)
-    rsa_n = _norm(rsa_plot)
+    eda_n = _zscore(eda_plot)
+    rsa_n = _zscore(rsa_plot)
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Background regions (draw in order: eda_only, rsa_only, overlap on top)
-    ylo, yhi = -0.05, 1.05
-    ax.fill_between(t_plot, ylo, yhi, where=eda_only, color=COL_EDA, alpha=0.35, label="EDA only")
-    ax.fill_between(t_plot, ylo, yhi, where=rsa_only, color=COL_RSA, alpha=0.35, label="RSA only")
-    ax.fill_between(t_plot, ylo, yhi, where=overlap, color=COL_OVERLAP, alpha=0.5, label="Overlap")
+    ylo = min(eda_n.min(), rsa_n.min()) - 0.1
+    yhi = max(eda_n.max(), rsa_n.max()) + 0.1
 
-    # Both traces in one panel
-    ax.plot(t_plot, eda_n, color="darkorange", linewidth=1.2, alpha=0.9, label="EDA")
-    ax.plot(t_plot, rsa_n, color="steelblue", linewidth=1.2, alpha=0.9, label="RSA")
+    # Full traces in gray/black (base layer)
+    ax.plot(t_plot, eda_n, color="gray", linewidth=1.2, alpha=0.9, label="EDA")
+    ax.plot(t_plot, rsa_n, color="black", linewidth=1.0, alpha=0.9, label="RSA")
+
+    # Overlay colored line segments where overlap
+    pad = np.concatenate(([False], overlap, [False]))
+    d = np.diff(pad.astype(int))
+    starts = np.where(d == 1)[0]
+    ends = np.where(d == -1)[0]
+    for s, e in zip(starts, ends):
+        ax.plot(t_plot[s:e], eda_n[s:e], color=COL_EDA, linewidth=1.5, alpha=1, zorder=5)
+        ax.plot(t_plot[s:e], rsa_n[s:e], color=COL_RSA, linewidth=1.3, alpha=1, zorder=5)
 
     ax.set_ylim(ylo, yhi)
-    ax.set_ylabel("Normalized amplitude")
+    ax.set_ylabel("Z-score")
     ax.set_xlabel("Time (s)")
-    ax.set_title(f"{participant_id} — Top {threshold_pct}% active (yellow=EDA, blue=RSA, green=overlap)")
+    ax.set_title(f"{participant_id} — Top {threshold_pct}% active (colored = overlap)")
     ax.legend(loc="upper right", ncol=2)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -148,7 +154,7 @@ def plot_patient_overlap_combined(
 
 
 def generate_all_threshold_plots(
-    data_dir: str = "data/preprocessed",
+    data_dir: str = "data",
     thresholds: list[int] = (5, 10, 15, 20, 25, 30, 35, 40),
     max_duration_sec: float | None = None,
     output_dir: str = "plots/1A",
@@ -200,7 +206,7 @@ def generate_all_threshold_plots(
 
 
 def pick_best_and_save_figure1a(
-    data_dir: str = "data/preprocessed",
+    data_dir: str = "data",
     thresholds: list[int] = (5, 10, 15, 20, 25, 30, 35, 40),
     max_duration_sec: float | None = None,
     output_dir: str = "plots/1A",

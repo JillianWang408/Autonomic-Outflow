@@ -15,9 +15,11 @@ Autonomic/
 │   │   ├── Figure1A_draft.png
 │   │   ├── thresh5/        # All patients at 5% threshold
 │   │   └── ... thresh40/
-│   ├── 1B/                 # Figure 1B heatmaps
-│   │   ├── P_EDA_given_RSA.png
-│   │   └── P_RSA_given_EDA.png
+│   ├── 1B/                 # Figure 1B heatmap
+│   │   └── Jaccard_overlap.png
+│   ├── 2/                  # Figure 2 lead-lag
+│   │   ├── {pid}.png       # Per-patient (visual check + histograms)
+│   │   └── Figure2_summary.png  # Stacked bar chart by patient
 │   ├── overlap_heatmaps.png
 │   ├── preprocessed/       # Preprocess comparison plots
 │   └── spectrum/           # Spectrum analysis plots
@@ -25,7 +27,8 @@ Autonomic/
 ├── eda_rsa_overlap.py      # Main overlap analysis
 ├── preprocess.py           # Preprocessing (currently passthrough)
 ├── plot_figure1.py         # Figure 1A generator
-├── plot_figure1B.py        # Figure 1B heatmaps
+├── plot_figure1B.py        # Figure 1B heatmap
+├── plot_figure2.py         # Figure 2 lead-lag
 └── analyze_spectrum.py     # Frequency analysis
 ```
 
@@ -55,7 +58,8 @@ python plot_figure1.py
 | `plot_figure1.py` | `plots/1A/Figure1A_draft.png` |
 | `plot_figure1.py --all` | `plots/1A/thresh{N}/{participant}.png` (by threshold) |
 | `plot_figure1.py --patient X --threshold 20` | `plots/1A/thresh20/{participant}.png` |
-| `plot_figure1B.py` | `plots/1B/P_EDA_given_RSA.png`, `P_RSA_given_EDA.png` |
+| `plot_figure1B.py` | `plots/1B/Jaccard_overlap.png` |
+| `plot_figure2.py` | `plots/2/{pid}.png` + `Figure2_summary.png` |
 | `eda_rsa_overlap.py --plot` | `plots/overlap_heatmaps.png` |
 | `preprocess.py` | `plots/preprocessed/*.png` |
 | `analyze_spectrum.py` | `plots/spectrum/*.png` |

@@ -87,15 +87,24 @@ python plot_figure1.py --patient EC288_pN22 --threshold 20  # Specific
 - Thresholds: 5, 10, 15, 20, 25, 30, 35, 40%
 - Output: `plots/1A/Figure1A_draft.png` — see [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for full layout
 
-## Figure 1B (heatmaps)
+## Figure 1B (Jaccard heatmap)
 
 ```bash
 python plot_figure1B.py
 ```
 
-- P(EDA|RSA): participants × thresholds, bottom row = group average
-- P(RSA|EDA): same structure
-- Output: `plots/1B/P_EDA_given_RSA.png`, `plots/1B/P_RSA_given_EDA.png`
+- Jaccard overlap: participants (y) × thresholds (x), bottom row = group average
+- Output: `plots/1B/Jaccard_overlap.png`
+
+## Figure 2 (lead-lag distribution)
+
+```bash
+python plot_figure2.py
+```
+
+- **Per patient:** `plots/2/{pid}.png` — visual check + EDA leads / RSA leads histograms
+- **Summary:** `plots/2/Figure2_summary.png` — stacked bar chart (each bin stacked by patient, each patient different color)
+- Top 30% of peaks by amplitude (configurable with `--top-peak-pct`)
 
 ## Brainstorm: More Plots & Analyses
 

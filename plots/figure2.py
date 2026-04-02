@@ -1,7 +1,9 @@
 """
 Figure 2: Lead-lag distribution (peak-to-peak).
 
-Two histograms: EDA leads vs RSA leads.
+Two pairing rules (per patient and in summary):
+- EDA anchor: each EDA peak → nearest RSA peak.
+- RSA anchor: each RSA peak → nearest EDA peak.
 Visual check: EDA/RSA traces with detected peaks marked.
 """
 
@@ -32,40 +34,86 @@ def _find_peaks(
     return peaks, t[peaks]
 
 
-def _compute_peak_to_peak_lags(
-    t: np.ndarray,
-    eda: np.ndarray,
-    rsa: np.ndarray,
-    fs: float,
-    top_peak_pct: float = 30,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    For each EDA peak, find nearest RSA peak. Lag = t_RSA - t_EDA.
-    Only uses top top_peak_pct% of peaks by amplitude (default 30%).
-    Returns (lags_eda_leads, lags_rsa_leads, eda_peak_times, rsa_peak_times).
-    """
-    eda_peaks, t_eda = _find_peaks(eda, t, fs, top_pct=top_peak_pct)
-    rsa_peaks, t_rsa = _find_peaks(rsa, t, fs, top_pct=top_peak_pct)
-
-    if len(eda_peaks) == 0 or len(rsa_peaks) == 0:
-        return np.array([]), np.array([]), t_eda, t_rsa
-
-    lags_eda_leads = []  # t_RSA - t_EDA > 0
-    lags_rsa_leads = []  # t_RSA - t_EDA < 0
+def _compute_lags_eda_anchor(
+    t_eda: np.ndarray,
+    t_rsa: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """For each EDA peak → nearest RSA. Lag = t_RSA − t_EDA. Positive = RSA follows (EDA leads)."""
+    if len(t_eda) == 0 or len(t_rsa) == 0:
+        return np.array([]), np.array([])
+    lags_eda_leads = []
+    lags_rsa_leads = []
     for te in t_eda:
         idx = np.argmin(np.abs(t_rsa - te))
         lag = t_rsa[idx] - te
         if lag > 0:
             lags_eda_leads.append(lag)
         elif lag < 0:
-            lags_rsa_leads.append(-lag)  # store as positive "RSA lead time"
+            lags_rsa_leads.append(-lag)
+    return np.array(lags_eda_leads), np.array(lags_rsa_leads)
+
+
+def _compute_lags_rsa_anchor(
+    t_eda: np.ndarray,
+    t_rsa: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """For each RSA peak → nearest EDA. Lag = t_EDA − t_RSA. Positive = EDA follows (RSA leads)."""
+    if len(t_eda) == 0 or len(t_rsa) == 0:
+        return np.array([]), np.array([])
+    lags_rsa_leads = []
+    lags_eda_leads = []
+    for tr in t_rsa:
+        idx = np.argmin(np.abs(t_eda - tr))
+        lag = t_eda[idx] - tr
+        if lag > 0:
+            lags_rsa_leads.append(lag)
+        elif lag < 0:
+            lags_eda_leads.append(-lag)
+    return np.array(lags_rsa_leads), np.array(lags_eda_leads)
+
+
+def _compute_peak_to_peak_lags(
+    t: np.ndarray,
+    eda: np.ndarray,
+    rsa: np.ndarray,
+    fs: float,
+    top_peak_pct: float = 30,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Peak times and lags for both anchoring schemes (top_peak_pct filter on each signal separately).
+
+    Returns:
+        t_eda, t_rsa,
+        eda_anchor_eda_leads, eda_anchor_rsa_leads,
+        rsa_anchor_rsa_leads, rsa_anchor_eda_leads
+    """
+    eda_peaks, t_eda = _find_peaks(eda, t, fs, top_pct=top_peak_pct)
+    rsa_peaks, t_rsa = _find_peaks(rsa, t, fs, top_pct=top_peak_pct)
+
+    e_eda, e_rsa = _compute_lags_eda_anchor(t_eda, t_rsa)
+    r_rsa, r_eda = _compute_lags_rsa_anchor(t_eda, t_rsa)
 
     return (
-        np.array(lags_eda_leads),
-        np.array(lags_rsa_leads),
         t_eda,
         t_rsa,
+        e_eda,
+        e_rsa,
+        r_rsa,
+        r_eda,
     )
+
+
+def _hist_lag(ax, lags: np.ndarray, bin_sec: float, color: str, edge: str, xlabel: str, title: str) -> None:
+    if len(lags) > 0:
+        mx = max(lags.max(), bin_sec)
+        bins = np.arange(0, mx + bin_sec, bin_sec)
+        ax.hist(lags, bins=bins, color=color, alpha=0.7, edgecolor=edge)
+        ax.axvline(np.median(lags), color="red", linestyle="--", linewidth=1.5, label=f"Median = {np.median(lags):.1f} s")
+        ax.legend()
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Count")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
 
 
 def _plot_single_patient(
@@ -74,16 +122,18 @@ def _plot_single_patient(
     rsa_win: np.ndarray,
     t_eda: np.ndarray,
     t_rsa: np.ndarray,
-    lags_eda: np.ndarray,
-    lags_rsa: np.ndarray,
+    eda_anchor_eda_leads: np.ndarray,
+    eda_anchor_rsa_leads: np.ndarray,
+    rsa_anchor_rsa_leads: np.ndarray,
+    rsa_anchor_eda_leads: np.ndarray,
     pid: str,
     top_peak_pct: float,
     bin_sec: float,
 ) -> plt.Figure:
-    """Plot one patient: visual check + 2 histograms."""
-    fig = plt.figure(figsize=(12, 10))
+    """One patient: visual check + EDA-anchored and RSA-anchored lag histograms."""
+    fig = plt.figure(figsize=(12, 14))
 
-    ax0 = fig.add_subplot(3, 1, 1)
+    ax0 = fig.add_subplot(5, 1, 1)
     eda_z = (eda_win - eda_win.mean()) / (eda_win.std() or 1)
     rsa_z = (rsa_win - rsa_win.mean()) / (rsa_win.std() or 1)
     ax0.plot(t_win, eda_z, color="gray", linewidth=0.8, alpha=0.8, label="EDA")
@@ -96,32 +146,65 @@ def _plot_single_patient(
     ax0.legend(loc="upper right", ncol=2, fontsize=8)
     ax0.grid(True, alpha=0.3)
 
-    ax1 = fig.add_subplot(3, 1, 2)
-    if len(lags_eda) > 0:
-        mx = max(lags_eda.max(), bin_sec)
-        bins = np.arange(0, mx + bin_sec, bin_sec)
-        ax1.hist(lags_eda, bins=bins, color="orange", alpha=0.7, edgecolor="darkorange")
-        ax1.axvline(np.median(lags_eda), color="red", linestyle="--", linewidth=1.5, label=f"Median = {np.median(lags_eda):.1f} s")
-    ax1.set_xlabel("Lag (s) — RSA peak after EDA peak")
-    ax1.set_ylabel("Count")
-    ax1.set_title("EDA leads")
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
+    ax1 = fig.add_subplot(5, 1, 2)
+    _hist_lag(
+        ax1, eda_anchor_eda_leads, bin_sec, "orange", "darkorange",
+        "Lag (s): RSA peak after EDA peak",
+        "Anchor = EDA (each EDA peak → nearest RSA): EDA leads / RSA follows",
+    )
 
-    ax2 = fig.add_subplot(3, 1, 3)
-    if len(lags_rsa) > 0:
-        mx = max(lags_rsa.max(), bin_sec)
-        bins = np.arange(0, mx + bin_sec, bin_sec)
-        ax2.hist(lags_rsa, bins=bins, color="steelblue", alpha=0.7, edgecolor="navy")
-        ax2.axvline(np.median(lags_rsa), color="red", linestyle="--", linewidth=1.5, label=f"Median = {np.median(lags_rsa):.1f} s")
-    ax2.set_xlabel("Lag (s) — EDA peak after RSA peak")
-    ax2.set_ylabel("Count")
-    ax2.set_title("RSA leads")
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
+    ax2 = fig.add_subplot(5, 1, 3)
+    _hist_lag(
+        ax2, eda_anchor_rsa_leads, bin_sec, "steelblue", "navy",
+        "Lag (s): RSA peak before EDA peak",
+        "Anchor = EDA: RSA leads / EDA follows",
+    )
+
+    ax3 = fig.add_subplot(5, 1, 4)
+    _hist_lag(
+        ax3, rsa_anchor_rsa_leads, bin_sec, "steelblue", "navy",
+        "Lag (s): EDA peak after RSA peak",
+        "Anchor = RSA (each RSA peak → nearest EDA): RSA leads / EDA follows",
+    )
+
+    ax4 = fig.add_subplot(5, 1, 5)
+    _hist_lag(
+        ax4, rsa_anchor_eda_leads, bin_sec, "orange", "darkorange",
+        "Lag (s): EDA peak before RSA peak",
+        "Anchor = RSA: EDA leads / RSA follows",
+    )
 
     fig.tight_layout()
     return fig
+
+
+def _stacked_bar_lags(
+    ax: plt.Axes,
+    per_patient: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
+    pids: list[str],
+    lag_index: int,
+    bins: np.ndarray,
+    bin_sec: float,
+    colors: np.ndarray,
+    title: str,
+    xlabel: str,
+) -> None:
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+    bottom = np.zeros(len(bin_centers))
+    for i, pid in enumerate(pids):
+        lags = per_patient[pid][lag_index]
+        if len(lags) > 0:
+            counts, _ = np.histogram(lags, bins=bins)
+            ax.bar(
+                bin_centers, counts, width=bin_sec, bottom=bottom,
+                color=colors[i], label=pid, edgecolor="white", linewidth=0.3,
+            )
+            bottom = bottom + counts
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel("Count")
+    ax.set_title(title)
+    ax.legend(loc="upper right", ncol=2, fontsize=7)
+    ax.grid(True, alpha=0.3)
 
 
 def plot_figure2(
@@ -132,9 +215,12 @@ def plot_figure2(
     top_peak_pct: float = 30,
 ) -> list[Path]:
     """
-    Generate Figure 2: per-patient plots + summary stacked bar chart.
-    - Per patient: plots/2/{pid}.png (visual check + 2 histograms)
-    - Summary: plots/2/Figure2_summary.png (stacked bar chart, each patient different color)
+    Generate Figure 2: per-patient plots + summary stacked bar charts.
+
+    Per patient (plots/2/{pid}.png): visual check + four histograms —
+      EDA anchor (EDA leads, RSA leads) and RSA anchor (RSA leads, EDA leads).
+
+    Summary (Figure2_summary.png): 2×2 stacked bar charts for the same four lag types.
     """
     data_path = Path(data_dir)
     out_path = Path(output_dir)
@@ -144,8 +230,8 @@ def plot_figure2(
     if not mat_files:
         raise FileNotFoundError(f"No .mat files in {data_dir}")
 
-    # Per-patient data
-    per_patient: dict[str, tuple[np.ndarray, np.ndarray]] = {}  # pid -> (lags_eda, lags_rsa)
+    # pid -> (eda_anchor_eda, eda_anchor_rsa, rsa_anchor_rsa, rsa_anchor_eda)
+    per_patient: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
     saved = []
 
     for f in mat_files:
@@ -163,15 +249,15 @@ def plot_figure2(
         eda_win = eda[start : start + n_plot]
         rsa_win = rsa[start : start + n_plot]
 
-        lags_eda, lags_rsa, t_eda, t_rsa = _compute_peak_to_peak_lags(
+        t_eda, t_rsa, e_eda, e_rsa, r_rsa, r_eda = _compute_peak_to_peak_lags(
             t_win, eda_win, rsa_win, fs, top_peak_pct=top_peak_pct
         )
-        per_patient[pid] = (lags_eda, lags_rsa)
+        per_patient[pid] = (e_eda, e_rsa, r_rsa, r_eda)
 
-        # Per-patient figure
         fig = _plot_single_patient(
             t_win, eda_win, rsa_win, t_eda, t_rsa,
-            lags_eda, lags_rsa, pid, top_peak_pct, bin_sec,
+            e_eda, e_rsa, r_rsa, r_eda,
+            pid, top_peak_pct, bin_sec,
         )
         pfile = out_path / f"{pid}.png"
         fig.savefig(pfile, dpi=150, bbox_inches="tight")
@@ -179,54 +265,48 @@ def plot_figure2(
         saved.append(pfile)
         print(f"Saved: {pfile}")
 
-    # Summary: stacked bar chart (each bin stacked by patient)
-    # Use gradient: orange shades for EDA, blue shades for RSA (cleaner than many distinct colors)
     pids = sorted(per_patient.keys())
-    n = max(len(pids), 1)
-    colors_eda = plt.colormaps["Oranges"](np.linspace(0.4, 0.95, n))
-    colors_rsa = plt.colormaps["Blues"](np.linspace(0.4, 0.95, n))
+    n_pt = max(len(pids), 1)
+    colors_eda = plt.colormaps["Oranges"](np.linspace(0.4, 0.95, n_pt))
+    colors_rsa = plt.colormaps["Blues"](np.linspace(0.4, 0.95, n_pt))
 
-    all_eda = np.concatenate([per_patient[p][0] for p in pids if len(per_patient[p][0]) > 0])
-    all_rsa = np.concatenate([per_patient[p][1] for p in pids if len(per_patient[p][1]) > 0])
-    max_eda = max(all_eda.max(), bin_sec) if len(all_eda) > 0 else bin_sec
-    max_rsa = max(all_rsa.max(), bin_sec) if len(all_rsa) > 0 else bin_sec
-    bins_eda = np.arange(0, max_eda + bin_sec, bin_sec)
-    bins_rsa = np.arange(0, max_rsa + bin_sec, bin_sec)
+    def _max_lag(idx: int) -> float:
+        arrs = [per_patient[p][idx] for p in pids if len(per_patient[p][idx]) > 0]
+        if not arrs:
+            return bin_sec
+        return max(np.concatenate(arrs).max(), bin_sec)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+    b0 = np.arange(0, _max_lag(0) + bin_sec, bin_sec)
+    b1 = np.arange(0, _max_lag(1) + bin_sec, bin_sec)
+    b2 = np.arange(0, _max_lag(2) + bin_sec, bin_sec)
+    b3 = np.arange(0, _max_lag(3) + bin_sec, bin_sec)
 
-    # EDA leads: stacked
-    if len(all_eda) > 0:
-        bin_centers = (bins_eda[:-1] + bins_eda[1:]) / 2
-        bottom = np.zeros(len(bin_centers))
-        for i, pid in enumerate(pids):
-            lags = per_patient[pid][0]
-            if len(lags) > 0:
-                counts, _ = np.histogram(lags, bins=bins_eda)
-                ax1.bar(bin_centers, counts, width=bin_sec, bottom=bottom, color=colors_eda[i], label=pid, edgecolor="white", linewidth=0.3)
-                bottom = bottom + counts
-        ax1.set_xlabel("Lag (s) — RSA peak after EDA peak")
-        ax1.set_ylabel("Count")
-        ax1.set_title("EDA leads (stacked by patient)")
-        ax1.legend(loc="upper right", ncol=2, fontsize=7)
-    ax1.grid(True, alpha=0.3)
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    ax11, ax12 = axes[0]
+    ax21, ax22 = axes[1]
 
-    # RSA leads: stacked
-    if len(all_rsa) > 0:
-        bin_centers = (bins_rsa[:-1] + bins_rsa[1:]) / 2
-        bottom = np.zeros(len(bin_centers))
-        for i, pid in enumerate(pids):
-            lags = per_patient[pid][1]
-            if len(lags) > 0:
-                counts, _ = np.histogram(lags, bins=bins_rsa)
-                ax2.bar(bin_centers, counts, width=bin_sec, bottom=bottom, color=colors_rsa[i], label=pid, edgecolor="white", linewidth=0.3)
-                bottom = bottom + counts
-        ax2.set_xlabel("Lag (s) — EDA peak after RSA peak")
-        ax2.set_ylabel("Count")
-        ax2.set_title("RSA leads (stacked by patient)")
-        ax2.legend(loc="upper right", ncol=2, fontsize=7)
-    ax2.grid(True, alpha=0.3)
+    _stacked_bar_lags(
+        ax11, per_patient, pids, 0, b0, bin_sec, colors_eda,
+        "Anchor = EDA: EDA leads (RSA follows)",
+        "Lag (s): RSA after EDA",
+    )
+    _stacked_bar_lags(
+        ax12, per_patient, pids, 1, b1, bin_sec, colors_rsa,
+        "Anchor = EDA: RSA leads (EDA follows)",
+        "Lag (s): RSA before EDA",
+    )
+    _stacked_bar_lags(
+        ax21, per_patient, pids, 2, b2, bin_sec, colors_rsa,
+        "Anchor = RSA: RSA leads (EDA follows)",
+        "Lag (s): EDA after RSA",
+    )
+    _stacked_bar_lags(
+        ax22, per_patient, pids, 3, b3, bin_sec, colors_eda,
+        "Anchor = RSA: EDA leads (RSA follows)",
+        "Lag (s): EDA before RSA",
+    )
 
+    fig.suptitle("Lead–lag summary (stacked by patient)", fontsize=12, y=1.02)
     fig.tight_layout()
     summary_file = out_path / "Figure2_summary.png"
     fig.savefig(summary_file, dpi=150, bbox_inches="tight")

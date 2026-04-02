@@ -4,7 +4,7 @@ Generate Figure 2: Lead-lag distribution (peak-to-peak).
 
 Two histograms: EDA leads vs RSA leads.
 Visual check: EDA/RSA traces with detected peaks marked.
-Output: plots/2/Figure2_lead_lag.png
+Output: plots/2/{pid}.png, plots/2/Figure2_summary.png
 
 Usage:
     python plot_figure2.py

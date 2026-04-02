@@ -77,9 +77,9 @@ python eda_rsa_overlap.py
 ## Figure 1A (overlap regions)
 
 ```bash
-python plot_figure1.py                    # Auto-pick best patient+threshold (20%), save draft
-python plot_figure1.py --all              # All patients × thresholds [5,10,...,40]% → plots/1A/thresh{N}/
-python plot_figure1.py --patient EC288_pN22 --threshold 20  # Specific
+python plot_figure1A.py                   # Auto-pick best patient+threshold (20%), save draft
+python plot_figure1A.py --all             # All patients × thresholds [5,10,...,40]% → plots/1A/thresh{N}/
+python plot_figure1A.py --patient EC288_pN22 --threshold 20  # Specific
 ```
 
 - EDA active: yellow (sympathetic)
@@ -96,14 +96,32 @@ python plot_figure1B.py
 - Jaccard overlap: participants (y) × thresholds (x), bottom row = group average
 - Output: `plots/1B/Jaccard_overlap.png`
 
+## Figure 3A & 3B — slope magnitude (|d/dt|)
+
+Same design as Figures 1A and 1B, but “active” is the **top X% of |dEDA/dt|** and **|dRSA/dt|** (ranked separately), not raw amplitude.
+
+```bash
+python plot_figure3A.py              # draft + optional --all / --patient
+python plot_figure3B.py              # heatmap → plots/3B/Jaccard_overlap_slope.png
+```
+
+## Figure 4 — lead–lag from max |slope|
+
+Same pairing as Figure 2 (EDA anchor vs RSA anchor), but events are **local maxima of |d(signal)/dt|** instead of amplitude peaks.
+
+```bash
+python plot_figure4.py               # plots/4/{pid}.png + Figure4_summary.png
+python plot_figure4.py --top-peak-pct 30
+```
+
 ## Figure 2 (lead-lag distribution)
 
 ```bash
 python plot_figure2.py
 ```
 
-- **Per patient:** `plots/2/{pid}.png` — visual check + EDA leads / RSA leads histograms
-- **Summary:** `plots/2/Figure2_summary.png` — stacked bar chart (each bin stacked by patient, each patient different color)
+- **Per patient:** `plots/2/{pid}.png` — visual check + four histograms: EDA-anchored and RSA-anchored pairing (EDA leads / RSA leads each)
+- **Summary:** `plots/2/Figure2_summary.png` — 2×2 stacked bar charts for the four lag types
 - Top 30% of peaks by amplitude (configurable with `--top-peak-pct`)
 
 ## Brainstorm: More Plots & Analyses

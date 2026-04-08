@@ -107,22 +107,33 @@ python plot_figure3B.py              # heatmap → plots/3B/Jaccard_overlap_slop
 
 ## Figure 4 — lead–lag from max |slope|
 
-Same pairing as Figure 2 (EDA anchor vs RSA anchor), but events are **local maxima of |d(signal)/dt|** instead of amplitude peaks.
+Same pairing as Figure 2A (EDA anchor vs RSA anchor), but events are **local maxima of |d(signal)/dt|** instead of amplitude peaks.
 
 ```bash
 python plot_figure4.py               # plots/4/{pid}.png + Figure4_summary.png
 python plot_figure4.py --top-peak-pct 30
 ```
 
-## Figure 2 (lead-lag distribution)
+## Figure 2A (lead-lag distribution)
 
 ```bash
-python plot_figure2.py
+python plot_figure2A.py
 ```
 
-- **Per patient:** `plots/2/{pid}.png` — visual check + four histograms: EDA-anchored and RSA-anchored pairing (EDA leads / RSA leads each)
-- **Summary:** `plots/2/Figure2_summary.png` — 2×2 stacked bar charts for the four lag types
+- **Per patient:** `plots/2A/{pid}.png` — visual check + four histograms: EDA-anchored and RSA-anchored pairing (EDA leads / RSA leads each)
+- **Summary:** `plots/2A/Figure2A_summary.png` — 2×2 stacked bar charts for the four lag types
 - Top 30% of peaks by amplitude (configurable with `--top-peak-pct`)
+
+## Figure 2B (co‑activation episodes, within‑segment lags)
+
+```bash
+python plot_figure2B.py
+```
+
+- **Co‑activation:** same as Figure 1 — top **40%** of amplitude per channel (both active). Each contiguous co‑active run is extended by **±3 s** (default, `--co-extend-sec`) for peak picking, pairing, and colored trace; then segments with **≥1 EDA peak and ≥1 RSA peak** in that **extended** window are kept. **Lead–lag** is **within each extended window only**; histograms use the **full** recording.
+- **Per patient:** `plots/2B/{pid}.png` — top panel: middle window, **colored** co‑active intervals (EDA yellow, RSA blue), peaks used in 2B; four lag histograms below.
+- **Summary:** `plots/2B/Figure2B_summary.png`
+- Flags: `--co-threshold-pct` (default 40), `--co-extend-sec` (default 3), `--top-peak-pct` (default 30), `--max-duration` (0 = full trace for top panel)
 
 ## Brainstorm: More Plots & Analyses
 

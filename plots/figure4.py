@@ -1,14 +1,19 @@
 """
-Figure 4: Lead–lag from local maxima of |d(signal)/dt| (same pairing logic as Figure 2).
+Figure 4: Lead–lag from local maxima of |d(signal)/dt| (same pairing logic as Figure 2A).
 
 EDA anchor vs RSA anchor; per-patient + 2×2 stacked summary.
 """
 
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from scipy.signal import find_peaks
 from scipy.io import loadmat
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 from eda_rsa_overlap_slope import abs_slope
 
@@ -115,8 +120,8 @@ def _plot_single_patient(
     t_win: np.ndarray,
     eda_win: np.ndarray,
     rsa_win: np.ndarray,
-    t_eda: np.ndarray,
-    t_rsa: np.ndarray,
+    t_eda_vis: np.ndarray,
+    t_rsa_vis: np.ndarray,
     eda_anchor_eda_leads: np.ndarray,
     eda_anchor_rsa_leads: np.ndarray,
     rsa_anchor_rsa_leads: np.ndarray,
@@ -131,11 +136,15 @@ def _plot_single_patient(
     rsa_z = (rsa_win - rsa_win.mean()) / (rsa_win.std() or 1)
     ax0.plot(t_win, eda_z, color="gray", linewidth=0.8, alpha=0.8, label="EDA")
     ax0.plot(t_win, rsa_z, color="black", linewidth=0.8, alpha=0.8, label="RSA")
-    ax0.scatter(t_eda, np.interp(t_eda, t_win, eda_z), color="orange", s=30, zorder=5, label="EDA max |slope|")
-    ax0.scatter(t_rsa, np.interp(t_rsa, t_win, rsa_z), color="steelblue", s=30, zorder=5, label="RSA max |slope|")
+    if len(t_eda_vis) > 0:
+        ax0.scatter(t_eda_vis, np.interp(t_eda_vis, t_win, eda_z), color="orange", s=30, zorder=5, label="EDA max|slope| (in window)")
+    if len(t_rsa_vis) > 0:
+        ax0.scatter(t_rsa_vis, np.interp(t_rsa_vis, t_win, rsa_z), color="steelblue", s=30, zorder=5, label="RSA max|slope| (in window)")
     ax0.set_ylabel("Z-score")
     ax0.set_xlabel("Time (s)")
-    ax0.set_title(f"{pid} — top {top_peak_pct:.0f}% max |slope| events (Figure 4)")
+    ax0.set_title(
+        f"{pid} — top {top_peak_pct:.0f}% max |slope| (Fig 4) | trace: window only; histograms: full recording"
+    )
     ax0.legend(loc="upper right", ncol=2, fontsize=8)
     ax0.grid(True, alpha=0.3)
 
@@ -188,7 +197,7 @@ def _stacked_bar_lags(
 def plot_figure4(
     data_dir: str = "data",
     output_dir: str = "plots/4",
-    max_duration_sec: float = 300,
+    max_duration_sec: float | None = 300,
     bin_sec: float = 2,
     top_peak_pct: float = 30,
 ) -> list[Path]:
@@ -210,18 +219,26 @@ def plot_figure4(
         fs = float(mat["FS"].flat[0])
         pid = Path(f).stem.split(" full")[0].replace("_preprocessed", "").strip()
         n = len(t)
-        n_plot = min(n, int(max_duration_sec * fs))
-        start = (n - n_plot) // 2
-        t_win = t[start : start + n_plot]
-        eda_win = eda[start : start + n_plot]
-        rsa_win = rsa[start : start + n_plot]
 
         t_eda, t_rsa, e_eda, e_rsa, r_rsa, r_eda = _compute_lags_from_slope_peaks(
-            t_win, eda_win, rsa_win, fs, top_peak_pct=top_peak_pct
+            t, eda, rsa, fs, top_peak_pct=top_peak_pct
         )
         per_patient[pid] = (e_eda, e_rsa, r_rsa, r_eda)
+
+        if max_duration_sec is not None and max_duration_sec > 0:
+            n_plot = min(n, int(max_duration_sec * fs))
+            start = (n - n_plot) // 2
+            t_win = t[start : start + n_plot]
+            eda_win = eda[start : start + n_plot]
+            rsa_win = rsa[start : start + n_plot]
+        else:
+            t_win, eda_win, rsa_win = t, eda, rsa
+        t_lo, t_hi = float(t_win[0]), float(t_win[-1])
+        t_eda_vis = t_eda[(t_eda >= t_lo) & (t_eda <= t_hi)]
+        t_rsa_vis = t_rsa[(t_rsa >= t_lo) & (t_rsa <= t_hi)]
+
         fig = _plot_single_patient(
-            t_win, eda_win, rsa_win, t_eda, t_rsa,
+            t_win, eda_win, rsa_win, t_eda_vis, t_rsa_vis,
             e_eda, e_rsa, r_rsa, r_eda,
             pid, top_peak_pct, bin_sec,
         )

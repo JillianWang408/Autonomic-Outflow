@@ -17,9 +17,12 @@ Autonomic/
 │   │   └── ... thresh40/
 │   ├── 1B/                 # Figure 1B heatmap
 │   │   └── Jaccard_overlap.png
-│   ├── 2/                  # Figure 2 lead-lag (amplitude peaks)
+│   ├── 2A/                 # Figure 2A lead-lag (amplitude peaks)
 │   │   ├── {pid}.png
-│   │   └── Figure2_summary.png
+│   │   └── Figure2A_summary.png
+│   ├── 2B/                 # Figure 2B co-activation segments + within-segment lags
+│   │   ├── {pid}.png
+│   │   └── Figure2B_summary.png
 │   ├── 3A/                 # Slope overlap (same layout as 1A)
 │   ├── 3B/                 # Jaccard_overlap_slope.png
 │   ├── 4/                  # Lead–lag from max |slope|
@@ -34,7 +37,8 @@ Autonomic/
 ├── preprocess.py           # Preprocessing (currently passthrough)
 ├── plot_figure1A.py        # Figure 1A generator
 ├── plot_figure1B.py        # Figure 1B heatmap
-├── plot_figure2.py         # Figure 2 lead-lag
+├── plot_figure2A.py        # Figure 2A lead-lag
+├── plot_figure2B.py        # Figure 2B co-activation segment lags
 ├── plot_figure3A.py        # Figure 3A (slope overlap)
 ├── plot_figure3B.py        # Figure 3B (slope Jaccard)
 ├── plot_figure4.py         # Figure 4 (slope lead-lag)
@@ -68,7 +72,8 @@ python plot_figure1A.py
 | `plot_figure1A.py --all` | `plots/1A/thresh{N}/{participant}.png` (by threshold) |
 | `plot_figure1A.py --patient X --threshold 20` | `plots/1A/thresh20/{participant}.png` |
 | `plot_figure1B.py` | `plots/1B/Jaccard_overlap.png` |
-| `plot_figure2.py` | `plots/2/{pid}.png` + `Figure2_summary.png` |
+| `plot_figure2A.py` | `plots/2A/{pid}.png` + `Figure2A_summary.png` |
+| `plot_figure2B.py` | `plots/2B/{pid}.png` + `Figure2B_summary.png` |
 | `plot_figure3A.py` | `plots/3A/Figure3A_draft.png`, `thresh*/` |
 | `plot_figure3B.py` | `plots/3B/Jaccard_overlap_slope.png` |
 | `plot_figure4.py` | `plots/4/{pid}.png` + `Figure4_summary.png` |

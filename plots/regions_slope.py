@@ -30,7 +30,7 @@ def plot_patient_overlap_regions_slope(
     participant_id: str = "",
     figsize: tuple[float, float] = (12, 5),
 ) -> plt.Figure:
-    """Like Figure 1A: z-scored EDA/RSA; colored segments = overlap of high-|slope| samples."""
+    """Like Figure 1A: z-scored EDA/RSA; colored segments = high-|slope| overlap where both d/dt > 0."""
     fs = len(t) / (t[-1] - t[0]) if len(t) > 1 else 100
     n = len(t)
 
@@ -45,7 +45,9 @@ def plot_patient_overlap_regions_slope(
 
     eda_active = _to_binary_active_slope(eda_plot, t_plot, threshold_pct)
     rsa_active = _to_binary_active_slope(rsa_plot, t_plot, threshold_pct)
-    overlap = eda_active & rsa_active
+    d_eda = np.gradient(eda_plot, t_plot)
+    d_rsa = np.gradient(rsa_plot, t_plot)
+    overlap = eda_active & rsa_active & (d_eda > 0) & (d_rsa > 0)
 
     def _zscore(x):
         x = np.asarray(x, dtype=float)
@@ -70,7 +72,7 @@ def plot_patient_overlap_regions_slope(
     ax.set_ylim(ylo, yhi)
     ax.set_ylabel("Z-score")
     ax.set_xlabel("Time (s)")
-    ax.set_title(f"{participant_id} — Top {threshold_pct}% |slope| overlap (3A)")
+    ax.set_title(f"{participant_id} — Top {threshold_pct}% |slope| overlap, positive slope only (3A)")
     ax.legend(loc="upper right", ncol=2)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()

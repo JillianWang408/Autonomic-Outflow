@@ -1,5 +1,5 @@
 """
-Figure 2: Lead-lag distribution (peak-to-peak).
+Figure 2A: Lead-lag distribution (peak-to-peak).
 
 Two pairing rules (per patient and in summary):
 - EDA anchor: each EDA peak → nearest RSA peak.
@@ -120,8 +120,8 @@ def _plot_single_patient(
     t_win: np.ndarray,
     eda_win: np.ndarray,
     rsa_win: np.ndarray,
-    t_eda: np.ndarray,
-    t_rsa: np.ndarray,
+    t_eda_vis: np.ndarray,
+    t_rsa_vis: np.ndarray,
     eda_anchor_eda_leads: np.ndarray,
     eda_anchor_rsa_leads: np.ndarray,
     rsa_anchor_rsa_leads: np.ndarray,
@@ -130,7 +130,7 @@ def _plot_single_patient(
     top_peak_pct: float,
     bin_sec: float,
 ) -> plt.Figure:
-    """One patient: visual check + EDA-anchored and RSA-anchored lag histograms."""
+    """Trace + peak markers only in t_win; histograms use full-recording lag lists (caller)."""
     fig = plt.figure(figsize=(12, 14))
 
     ax0 = fig.add_subplot(5, 1, 1)
@@ -138,11 +138,17 @@ def _plot_single_patient(
     rsa_z = (rsa_win - rsa_win.mean()) / (rsa_win.std() or 1)
     ax0.plot(t_win, eda_z, color="gray", linewidth=0.8, alpha=0.8, label="EDA")
     ax0.plot(t_win, rsa_z, color="black", linewidth=0.8, alpha=0.8, label="RSA")
-    ax0.scatter(t_eda, np.interp(t_eda, t_win, eda_z), color="orange", s=30, zorder=5, label="EDA peaks")
-    ax0.scatter(t_rsa, np.interp(t_rsa, t_win, rsa_z), color="steelblue", s=30, zorder=5, label="RSA peaks")
+    if len(t_eda_vis) > 0:
+        ax0.scatter(t_eda_vis, np.interp(t_eda_vis, t_win, eda_z), color="orange", s=30, zorder=5, label="EDA peaks (in window)")
+    if len(t_rsa_vis) > 0:
+        ax0.scatter(t_rsa_vis, np.interp(t_rsa_vis, t_win, rsa_z), color="steelblue", s=30, zorder=5, label="RSA peaks (in window)")
     ax0.set_ylabel("Z-score")
     ax0.set_xlabel("Time (s)")
-    ax0.set_title(f"{pid} — top {top_peak_pct:.0f}% peaks")
+    ax0.set_title(
+        f"{pid} — top {top_peak_pct:.0f}% peaks | trace: this window only; "
+        f"histograms: full recording ({len(eda_anchor_eda_leads) + len(eda_anchor_rsa_leads)} EDA-anchor, "
+        f"{len(rsa_anchor_rsa_leads) + len(rsa_anchor_eda_leads)} RSA-anchor lags)"
+    )
     ax0.legend(loc="upper right", ncol=2, fontsize=8)
     ax0.grid(True, alpha=0.3)
 
@@ -209,18 +215,18 @@ def _stacked_bar_lags(
 
 def plot_figure2(
     data_dir: str = "data",
-    output_dir: str = "plots/2",
-    max_duration_sec: float = 300,
+    output_dir: str = "plots/2A",
+    max_duration_sec: float | None = 300,
     bin_sec: float = 2,
     top_peak_pct: float = 30,
 ) -> list[Path]:
     """
-    Generate Figure 2: per-patient plots + summary stacked bar charts.
+    Lag histograms use the **full** recording per patient. The top panel plots a **middle
+    window** (max_duration_sec seconds) with peak markers only for events inside that window.
 
-    Per patient (plots/2/{pid}.png): visual check + four histograms —
-      EDA anchor (EDA leads, RSA leads) and RSA anchor (RSA leads, EDA leads).
+    If max_duration_sec is None or <= 0, the visual uses the full trace and all peak markers.
 
-    Summary (Figure2_summary.png): 2×2 stacked bar charts for the same four lag types.
+    Summary (Figure2A_summary.png): 2×2 stacked bar charts (full-recording lags).
     """
     data_path = Path(data_dir)
     out_path = Path(output_dir)
@@ -243,19 +249,29 @@ def plot_figure2(
         pid = Path(f).stem.split(" full")[0].replace("_preprocessed", "").strip()
 
         n = len(t)
-        n_plot = min(n, int(max_duration_sec * fs))
-        start = (n - n_plot) // 2
-        t_win = t[start : start + n_plot]
-        eda_win = eda[start : start + n_plot]
-        rsa_win = rsa[start : start + n_plot]
 
+        # Lags from full recording
         t_eda, t_rsa, e_eda, e_rsa, r_rsa, r_eda = _compute_peak_to_peak_lags(
-            t_win, eda_win, rsa_win, fs, top_peak_pct=top_peak_pct
+            t, eda, rsa, fs, top_peak_pct=top_peak_pct
         )
         per_patient[pid] = (e_eda, e_rsa, r_rsa, r_eda)
 
+        # Visual: middle window (or full if max_duration_sec unset)
+        if max_duration_sec is not None and max_duration_sec > 0:
+            n_plot = min(n, int(max_duration_sec * fs))
+            start = (n - n_plot) // 2
+            t_win = t[start : start + n_plot]
+            eda_win = eda[start : start + n_plot]
+            rsa_win = rsa[start : start + n_plot]
+        else:
+            t_win, eda_win, rsa_win = t, eda, rsa
+
+        t_lo, t_hi = float(t_win[0]), float(t_win[-1])
+        t_eda_vis = t_eda[(t_eda >= t_lo) & (t_eda <= t_hi)]
+        t_rsa_vis = t_rsa[(t_rsa >= t_lo) & (t_rsa <= t_hi)]
+
         fig = _plot_single_patient(
-            t_win, eda_win, rsa_win, t_eda, t_rsa,
+            t_win, eda_win, rsa_win, t_eda_vis, t_rsa_vis,
             e_eda, e_rsa, r_rsa, r_eda,
             pid, top_peak_pct, bin_sec,
         )
@@ -306,9 +322,9 @@ def plot_figure2(
         "Lag (s): EDA before RSA",
     )
 
-    fig.suptitle("Lead–lag summary (stacked by patient)", fontsize=12, y=1.02)
+    fig.suptitle("Figure 2A: lead–lag summary (stacked by patient)", fontsize=12, y=1.02)
     fig.tight_layout()
-    summary_file = out_path / "Figure2_summary.png"
+    summary_file = out_path / "Figure2A_summary.png"
     fig.savefig(summary_file, dpi=150, bbox_inches="tight")
     plt.close(fig)
     saved.append(summary_file)
